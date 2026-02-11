@@ -1,4 +1,4 @@
-apiVersion: app/v1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: lunch-api
@@ -8,30 +8,29 @@ spec:
   selector:
     matchLabels:
       app: lunch-api
-    template:
-      metadata:
-        labels:
-          app: lunch-api
-      spec:
-        containers:
-          - name: lunch-api
-            image: ghcr.io/hjh6709/lunch_app_second:latest
-            imagePullPolicy: Always
-            ports:
-              - containerPort: 8000
-            readinessProbe:
-              httpGet:
-                path: /health
-                port: 8000
-              initialDelaySeconds: 3
-              periodSeconds: 5
-            livenessProbe:
-              httpGet:
-                path: /health
-                port: 8000
-              initialDelaySeconds: 10
-              periodSeconds: 10
-      # 같은 앱 pod가 한 노드에 물리지 않게(가능한 한) 분산 ?
+  template:
+    metadata:
+      labels:
+        app: lunch-api
+    spec:
+      containers:
+        - name: lunch-api
+          image: ghcr.io/hjh6709/lunch_app_second:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -40,4 +39,5 @@ spec:
                 labelSelector:
                   matchLabels:
                     app: lunch-api
-                topologyKey: kubernetes.io/hostname       
+                topologyKey: kubernetes.io/hostname
+
