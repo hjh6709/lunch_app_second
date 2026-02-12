@@ -3,7 +3,7 @@
   hosts: workers
   become: true
   vars:
-    master_ip: "{{ hostvars[groups['master'][0]].ansible_host | default(groups['master'][0]) }}"
+    master_host: "{{ groups['master'][0] }}"
   tasks:
     - name: Install common packages
       apt:
@@ -13,10 +13,22 @@
         state: present
         update_cache: yes
 
+    - name: Get master private IP (VPC internal)
+      setup:
+        filter: ansible_default_ipv4
+      delegate_to: "{{ master_host }}"
+      register: master_facts
+      run_once: true
+
+    - name: Set master_ip fact
+      set_fact:
+        master_ip: "{{ master_facts.ansible_facts.ansible_default_ipv4.address }}"
+      run_once: true
+
     - name: Read token from master
       slurp:
         src: /var/lib/rancher/k3s/server/node-token
-      delegate_to: "{{ groups['master'][0] }}"
+      delegate_to: "{{ master_host }}"
       register: token_file
       run_once: true
 
@@ -27,7 +39,9 @@
 
     - name: Install k3s agent (join)
       shell: |
-        curl -sfL https://get.k3s.io | K3S_URL=https://{{ master_ip }}:6443 K3S_TOKEN={{ hostvars['localhost']['k3s_token'] | default(k3s_token) }} sh -
+        curl -sfL https://get.k3s.io | \
+          K3S_URL=https://{{ master_ip }}:6443 \
+          K3S_TOKEN={{ k3s_token }} sh -
       args:
-        creates: /usr/local/bin/k3s-agent
+        creates: /usr/local/bin/k3s
 
