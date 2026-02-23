@@ -23,6 +23,12 @@
     dest: /opt/lunch-app-k8s/service.yaml
     mode: "0644"
 
+- name: Render ingress manifest
+  template:
+    src: ingress.yaml.j2
+    dest: /opt/lunch-app-k8s/ingress.yaml
+    mode: "0644"
+
 - name: Apply namespace
   command: kubectl apply -f /opt/lunch-app-k8s/namespace.yaml
   environment:
@@ -38,6 +44,11 @@
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
+- name: Apply ingress
+  command: kubectl apply -f /opt/lunch-app-k8s/ingress.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
 - name: Wait for deployment rollout
   command: kubectl -n {{ app_namespace }} rollout status deployment/{{ app_name }} --timeout=120s
   environment:
@@ -45,7 +56,7 @@
   changed_when: false
 
 - name: Show resources
-  command: kubectl -n {{ app_namespace }} get deploy,svc,pods -o wide
+  command: kubectl -n {{ app_namespace }} get deploy,svc,ingress,pods -o wide
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   changed_when: false

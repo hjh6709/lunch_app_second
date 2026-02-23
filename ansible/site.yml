@@ -169,16 +169,38 @@
           - Node Export: http://{{ monitoring_public_ip }}:9100/metrics
 
 # ===========================================
-# 8. Lunch App 배포 (GHCR → K3s)
+# 8. Ingress Controller 설치 (앱 배포 전 필수)
+# ===========================================
+- name: Install ingress-nginx Controller
+  hosts: master
+  become: yes
+  tags: [ingress, ingress-nginx]
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  roles:
+    - ingress_nginx
+
+# ===========================================
+# 9. Lunch App 배포 (GHCR → K3s)
 # ===========================================
 - name: Deploy Lunch App to K3s
   hosts: master
   become: yes
   tags: [app, deploy]
   environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml # app_deploy role에서도 kubectl이 클러스터를 정확히 보도록 함
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   roles:
-    - app_deploy  # 템플릿 렌더링 -> kubecl apply -> rollout 확인
+    - app_deploy
+
+# ===========================================
+# 10. Edge Proxy 설정 (Monitoring → Ingress)
+# ===========================================
+- name: Setup Edge Proxy on Monitoring Server
+  hosts: monitoring
+  become: yes
+  tags: [edge-proxy, proxy]
+  roles:
+    - edge_proxy
 
 # ===========================================
 # 매뉴얼 및 트러블슈팅 가이드

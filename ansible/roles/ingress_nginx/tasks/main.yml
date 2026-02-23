@@ -1,0 +1,39 @@
+---
+# ingress-nginx 컨트롤러를 K3s 클러스터에 설치
+# NodePort 30080(HTTP), 30443(HTTPS)로 고정
+
+- name: Create ingress-nginx manifest directory
+  file:
+    path: /opt/ingress-nginx
+    state: directory
+    mode: "0755"
+
+- name: Render ingress-nginx manifest
+  template:
+    src: ingress-nginx-deploy.yaml.j2
+    dest: /opt/ingress-nginx/deploy.yaml
+    mode: "0644"
+
+- name: Apply ingress-nginx manifest
+  command: kubectl apply -f /opt/ingress-nginx/deploy.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Wait for ingress-nginx controller to be ready
+  command: >
+    kubectl -n ingress-nginx rollout status deployment/ingress-nginx-controller
+    --timeout=120s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+
+- name: Verify ingress-nginx service
+  command: kubectl -n ingress-nginx get svc ingress-nginx-controller
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: ingress_svc
+  changed_when: false
+
+- name: Display ingress-nginx service info
+  debug:
+    msg: "{{ ingress_svc.stdout_lines }}"

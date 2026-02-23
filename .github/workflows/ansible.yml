@@ -1,0 +1,105 @@
+name: "Ansible Deploy"
+
+on:
+  workflow_run:
+    workflows: ["Terraform Infrastructure"]
+    types: [completed]
+    branches: [main]
+  push:
+    branches: [main]
+    paths: ["ansible/**"]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Ansible tags (예: app, ingress, edge-proxy, k3s)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: "ap-northeast-2"
+
+jobs:
+  ansible-deploy:
+    name: "Ansible Deploy"
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/Hello_kt.pem
+          chmod 600 ~/.ssh/Hello_kt.pem
+          cat >> ~/.ssh/config << 'EOF'
+          Host *
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
+            LogLevel ERROR
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Generate Inventory from Terraform
+        working-directory: terraform
+        run: |
+          pip install ansible --break-system-packages --quiet
+          ansible-galaxy collection install community.general ansible.posix community.docker --force
+
+          # Terraform output에서 IP 추출
+          terraform init -backend=true > /dev/null
+          MASTER_IP=$(terraform output -raw master_private_ip)
+          MONITORING_IP=$(terraform output -raw monitoring_public_ip)
+          WORKER_IPS=$(terraform output -json worker_private_ips | python3 -c "import sys,json; [print(ip) for ip in json.load(sys.stdin)]")
+
+          mkdir -p ../ansible/inventory
+          cat > ../ansible/inventory/aws.ini << INVENTORY
+          [master]
+          ${MASTER_IP}
+
+          [worker]
+          $(echo "$WORKER_IPS")
+
+          [monitoring]
+          ${MONITORING_IP}
+
+          [k3s_cluster:children]
+          master
+          worker
+
+          [node_exporter:children]
+          k3s_cluster
+
+          [all:vars]
+          ansible_user=ubuntu
+          ansible_ssh_private_key_file=~/.ssh/Hello_kt.pem
+          ansible_python_interpreter=/usr/bin/python3
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+          [k3s_cluster:vars]
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ProxyCommand="ssh -W %h:%p -q ubuntu@${MONITORING_IP} -i ~/.ssh/Hello_kt.pem"'
+          INVENTORY
+
+          cat ../ansible/inventory/aws.ini
+
+      - name: Run Ansible Playbook
+        working-directory: ansible
+        run: |
+          TAGS="${{ github.event.inputs.tags }}"
+          TAG_OPT=""
+          if [ -n "$TAGS" ]; then
+            TAG_OPT="--tags $TAGS"
+          fi
+
+          ansible-playbook -i inventory/aws.ini site.yml --timeout=120 $TAG_OPT

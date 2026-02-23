@@ -1,0 +1,38 @@
+# Nginx Edge Proxy - Monitoring 서버
+# 외부 :80 요청을 K3s Ingress Controller NodePort(30080)로 전달
+#
+# upstream에 Master + Worker 전부 넣음
+# (NodePort는 어느 K3s 노드로 가도 Ingress Controller로 라우팅됨)
+
+upstream k3s_ingress {
+{% for host in groups['master'] %}
+    server {{ hostvars[host]['ansible_default_ipv4']['address'] | default(host) }}:30080;
+{% endfor %}
+{% for host in groups['worker'] %}
+    server {{ hostvars[host]['ansible_default_ipv4']['address'] | default(host) }}:30080;
+{% endfor %}
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    # 프록시 설정
+    location / {
+        proxy_pass         http://k3s_ingress;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout  5s;
+        proxy_read_timeout     60s;
+        proxy_send_timeout     60s;
+    }
+
+    # Nginx 상태 확인용 (선택)
+    location /nginx-health {
+        return 200 'ok';
+        add_header Content-Type text/plain;
+    }
+}

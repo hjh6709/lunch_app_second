@@ -113,6 +113,11 @@ output "grafana_url" {
   value       = "http://${aws_instance.monitoring_server.public_ip}:3000"
 }
 
+output "lunch_app_url" {
+  description = "Lunch App 외부 접속 URL"
+  value       = "http://${aws_instance.monitoring_server.public_ip}"
+}
+
 # ==========================================
 # Lambda Scheduler 정보
 # ==========================================

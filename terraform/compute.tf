@@ -26,6 +26,21 @@ resource "aws_security_group" "monitoring_sg" {
     cidr_blocks = ["0.0.0.0/0"]
     description = "Grafana Access"
   }
+  # ── 외부 접속용 (Nginx Edge Proxy → Ingress) ──
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTP - Lunch App External Access"
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS - Lunch App External Access"
+  }
   egress {
     from_port   = 0
     to_port     = 0
@@ -123,6 +138,25 @@ resource "aws_security_group_rule" "allow_internal_all" {
   security_group_id        = aws_security_group.web_sg.id
   source_security_group_id = aws_security_group.web_sg.id
   description              = "Allow all internal traffic between Master and Workers"
+}
+# ── Monitoring → Ingress Controller NodePort ──
+resource "aws_security_group_rule" "monitoring_to_ingress_http" {
+  type                     = "ingress"
+  from_port                = 30080
+  to_port                  = 30080
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.web_sg.id
+  source_security_group_id = aws_security_group.monitoring_sg.id
+  description              = "Monitoring Nginx → Ingress Controller HTTP NodePort"
+}
+resource "aws_security_group_rule" "monitoring_to_ingress_https" {
+  type                     = "ingress"
+  from_port                = 30443
+  to_port                  = 30443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.web_sg.id
+  source_security_group_id = aws_security_group.monitoring_sg.id
+  description              = "Monitoring Nginx → Ingress Controller HTTPS NodePort"
 }
 # ==========================================
 # EC2 인스턴스 - Master Node
