@@ -27,21 +27,7 @@ provider "aws" {
     }
   }
 }
-# SSH 키 생성
-resource "tls_private_key" "deployer" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
 
-# AWS에 공개키 등록
-resource "aws_key_pair" "hello_kt_key" {
-  key_name   = "Hello_kt"
-  public_key = tls_private_key.deployer.public_key_openssh
-}
-
-# [추가 필수] 테라폼이 만든 열쇠를 내 컴퓨터에 실물 .pem 파일로 저장
-resource "local_file" "ssh_key" {
-  content         = tls_private_key.deployer.private_key_pem
-  filename        = "${path.module}/Hello_kt.pem"
-  file_permission = "0600"
-}
+# ★ 기존 AWS에 등록된 키 페어를 참조 (새로 생성하지 않음)
+# key_name = "Hello_kt" → variables.tf의 var.key_name으로 EC2에서 사용
+# pem 파일은 GitHub Secrets(SSH_PRIVATE_KEY)에 한 번만 등록하면 됨
