@@ -37,8 +37,7 @@ EOT
   depends_on = [
     aws_instance.Master_server,
     aws_instance.Worker_server,
-    aws_instance.monitoring_server,
-    local_file.ssh_key
+    aws_instance.monitoring_server
   ]
 }
 
